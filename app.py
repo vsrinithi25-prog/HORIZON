@@ -232,7 +232,7 @@ def create_app(config=None):
         ))
 
         db.session.commit()
-        return jsonify(id=project.id, name=project.name), 201sss
+        return jsonify(id=project.id, name=project.name), 201
 
     @app.patch("/api/tasks/<int:task_id>")
     @login_required
