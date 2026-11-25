@@ -36,7 +36,7 @@ def create_app(config=None):
     db.init_app(app)
     socketio.init_app(app, async_mode="threading")
 
-        @app.before_request
+    @app.before_request
     def same_origin_guard():
         write_methods = {"POST", "PUT", "PATCH", "DELETE"}
         origin = request.headers.get("Origin")
