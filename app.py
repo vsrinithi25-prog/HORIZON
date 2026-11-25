@@ -10,7 +10,7 @@ from email.message import EmailMessage
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
-
+from urllib.parse import urlsplit
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from flask_socketio import join_room
 from werkzeug.utils import secure_filename
@@ -36,16 +36,21 @@ def create_app(config=None):
     db.init_app(app)
     socketio.init_app(app, async_mode="threading")
 
-    @app.before_request
+        @app.before_request
     def same_origin_guard():
-        # SameSite cookies are the baseline; reject cross-origin browser writes as defense in depth.
-        if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.headers.get("Origin"):
-            if request.headers["Origin"].rstrip("/") != request.host_url.rstrip("/"):
+        write_methods = {"POST", "PUT", "PATCH", "DELETE"}
+        origin = request.headers.get("Origin")
+
+        if request.method in write_methods and origin:
+            origin_host = urlsplit(origin).netloc.lower()
+            if origin_host != request.host.lower():
                 abort(403)
-        if request.method in {"POST", "PUT", "PATCH", "DELETE"} and session.get("user_id"):
+
+        if request.method in write_methods and current_user():
             expected = session.get("csrf_token", "")
             supplied = request.headers.get("X-CSRF-Token", "")
-            if not expected or not secrets.compare_digest(expected, supplied): abort(400, "Missing or invalid CSRF token.")
+            if not expected or not secrets.compare_digest(expected, supplied):
+                abort(400, "Missing or invalid CSRF token.")
 
     def current_user():
         uid = session.get("user_id")
