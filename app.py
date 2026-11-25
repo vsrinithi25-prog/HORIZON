@@ -285,7 +285,7 @@ def create_app(config=None):
         user=current_user(); workspaces=user_workspaces(user); ids=[p.id for p in Project.query.filter(Project.workspace_id.in_([w.id for w in workspaces])).all()] if workspaces else []
         rows=Task.query.filter(Task.project_id.in_(ids),Task.deleted_at.is_not(None)).all() if ids else []
         return jsonify(tasks=[{"id":t.id,"title":t.title,"deleted_at":t.deleted_at.isoformat()} for t in rows])
-            @app.get("/api/notifications")
+    @app.get("/api/notifications")
     @login_required
     def notifications():
         rows=Notification.query.filter_by(user_id=current_user().id).order_by(Notification.created_at.desc()).limit(50).all()
