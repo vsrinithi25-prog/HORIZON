@@ -195,56 +195,44 @@ def create_app(config=None):
     @app.post("/api/workspaces/<int:workspace_id>/projects")
     @login_required
     def create_project(workspace_id):
-        user=current_user(); membership=member_workspace(user.id,workspace_id)
-        if not membership: return json_error("Workspace not found.",404)
-        if membership.role=="viewer": return json_error("Viewers cannot create projects.",403)
-                data=request.get_json(silent=True) or {}; name=str(data.get("name", "")).strip()
-        if not name or len(name)>160: return json_error("Project name is required (up to 160 characters).")
-        project=Project(workspace_id=workspace_id,name=name,description=str(data.get("description", ""))[:5000])
-        db.session.add(project); db.session.flush(); db.session.add(TaskList(project_id=project.id,name="To do")); db.session.add(TaskList(project_id=project.id,name="In progress",position=1)); db.session.add(TaskList(project_id=project.id,name="Done",position=2)); db.session.commit()
-        return jsonify(id=project.id,name=project.name),201
+        user = current_user()
+        membership = member_workspace(user.id, workspace_id)
 
-    @app.get("/api/projects/<int:project_id>/lists")
-    @login_required
-    def get_task_lists(project_id):
-        if not project_access(current_user().id,project_id): return json_error("Project not found.",404)
-        rows=TaskList.query.filter_by(project_id=project_id).order_by(TaskList.position,TaskList.id).all()
-        return jsonify(lists=[{"id":r.id,"name":r.name,"position":r.position} for r in rows])
+        if not membership:
+            return json_error("Workspace not found.", 404)
 
-    @app.post("/api/projects/<int:project_id>/lists")
-    @login_required
-    def create_task_list(project_id):
-        project=project_access(current_user().id,project_id)
-        if not project: return json_error("Project not found.",404)
-        membership=member_workspace(current_user().id,project.workspace_id)
-        if membership.role=="viewer": return json_error("Viewers cannot create task lists.",403)
-        name=str((request.get_json(silent=True) or {}).get("name", "")).strip()
-        if not name or len(name)>120: return json_error("List name is required (up to 120 characters).")
-        item=TaskList(project_id=project_id,name=name,position=TaskList.query.filter_by(project_id=project_id).count()); db.session.add(item); db.session.commit()
-        return jsonify(id=item.id,name=item.name,position=item.position),201
+        if membership.role == "viewer":
+            return json_error("Viewers cannot create projects.", 403)
 
-    @app.post("/api/projects/<int:project_id>/tasks")
-    @login_required
-    def create_task(project_id):
-        user=current_user(); project=project_access(user.id,project_id)
-        if not project: return json_error("Project not found.",404)
-        membership=member_workspace(user.id,project.workspace_id)
-        if membership.role=="viewer": return json_error("Viewers cannot create tasks.",403)
-        data=request.get_json(silent=True) or {}; title=str(data.get("title", "")).strip(); status=data.get("status","todo"); priority=data.get("priority","medium")
-        if not title or len(title)>240: return json_error("Task title is required (up to 240 characters).")
-        if status not in STATUSES or priority not in PRIORITIES: return json_error("Invalid status or priority.")
-        parent_id=data.get("parent_id")
-        if parent_id and (not task_access(user.id,int(parent_id)) or task_access(user.id,int(parent_id)).project_id!=project_id): return json_error("Subtask parent must be in this project.")
-        list_id=data.get("list_id")
-        if list_id and not TaskList.query.filter_by(id=list_id,project_id=project_id).first(): return json_error("Task list must belong to this project.")
-        task=Task(project_id=project_id,title=title,description=str(data.get("description", ""))[:10000],status=status,priority=priority,parent_id=parent_id,list_id=list_id,created_by=user.id)
-        if data.get("due_date"):
-            try: task.due_date=datetime.fromisoformat(data["due_date"]).date()
-            except (TypeError,ValueError): return json_error("due_date must be YYYY-MM-DD")
-        db.session.add(task); db.session.flush()
-        if status=="done": task.completed_at=now()
-        db.session.add(Notification(user_id=user.id,body=f"Task created: {title}")); db.session.commit()
-        return jsonify(serialize_task(task)),201
+        data = request.get_json(silent=True) or {}
+        name = str(data.get("name", "")).strip()
+
+        if not name or len(name) > 160:
+            return json_error("Project name is required (up to 160 characters).")
+
+        project = Project(
+            workspace_id=workspace_id,
+            name=name,
+            description=str(data.get("description", ""))[:5000]
+        )
+
+        db.session.add(project)
+        db.session.flush()
+
+        db.session.add(TaskList(project_id=project.id, name="To do"))
+        db.session.add(TaskList(
+            project_id=project.id,
+            name="In progress",
+            position=1
+        ))
+        db.session.add(TaskList(
+            project_id=project.id,
+            name="Done",
+            position=2
+        ))
+
+        db.session.commit()
+        return jsonify(id=project.id, name=project.name), 201sss
 
     @app.patch("/api/tasks/<int:task_id>")
     @login_required
