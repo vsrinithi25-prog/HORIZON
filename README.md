@@ -1,5 +1,7 @@
 # 🌅 HORIZON
 
+🔗 **Live website:** [Open HORIZON](https://horizon-5x5o.onrender.com)
+
 A calm and organized productivity workspace for personal and team projects.
 
 HORIZON brings projects, tasks, calendars, and team conversations together in one place. Plan work with task lists, subtasks, deadlines, and dependencies; coordinate through shared workspaces and messaging; and track progress with helpful reminders and insights.
