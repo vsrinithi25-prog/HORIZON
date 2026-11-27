@@ -238,7 +238,76 @@ def create_app(config=None):
 
         db.session.commit()
         return jsonify(id=project.id, name=project.name), 201
+    @app.post("/api/projects/<int:project_id>/tasks")
+    @login_required
+    def create_task(project_id):
+        user = current_user()
+        project = project_access(user.id, project_id)
 
+        if not project:
+            return json_error("Project not found.", 404)
+
+        membership = member_workspace(user.id, project.workspace_id)
+        if membership.role == "viewer":
+            return json_error("Viewers cannot create tasks.", 403)
+
+        data = request.get_json(silent=True) or {}
+        title = str(data.get("title", "")).strip()
+        status = data.get("status", "todo")
+        priority = data.get("priority", "medium")
+
+        if not title or len(title) > 240:
+            return json_error("Task title is required (up to 240 characters).")
+
+        if status not in STATUSES or priority not in PRIORITIES:
+            return json_error("Invalid status or priority.")
+
+        parent_id = data.get("parent_id")
+        if parent_id:
+            try:
+                parent_id = int(parent_id)
+            except (TypeError, ValueError):
+                return json_error("Invalid subtask parent.")
+            parent = task_access(user.id, parent_id)
+            if not parent or parent.project_id != project_id:
+                return json_error("Subtask parent must be in this project.")
+
+        list_id = data.get("list_id")
+        if list_id:
+            try:
+                list_id = int(list_id)
+            except (TypeError, ValueError):
+                return json_error("Invalid task list.")
+            if not TaskList.query.filter_by(id=list_id, project_id=project_id).first():
+                return json_error("Task list must belong to this project.")
+
+        task = Task(
+            project_id=project_id,
+            title=title,
+            description=str(data.get("description", ""))[:10000],
+            status=status,
+            priority=priority,
+            parent_id=parent_id,
+            list_id=list_id,
+            created_by=user.id
+        )
+
+        if data.get("due_date"):
+            try:
+                task.due_date = datetime.fromisoformat(data["due_date"]).date()
+            except (TypeError, ValueError):
+                return json_error("due_date must be YYYY-MM-DD.")
+
+        db.session.add(task)
+        db.session.flush()
+
+        if status == "done":
+            task.completed_at = now()
+
+        db.session.add(Notification(user_id=user.id, body=f"Task created: {title}"))
+        db.session.commit()
+
+        return jsonify(serialize_task(task)), 201
     @app.patch("/api/tasks/<int:task_id>")
     @login_required
     def update_task(task_id):
